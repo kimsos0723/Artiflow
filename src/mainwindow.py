@@ -37,17 +37,22 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
             msg = QMessageBox()
             msg.setText(fileName)
             msg.exec_()
-            db_ctr = DBController(fileName)            
-            names, result = db_ctr.excute_sql('select * from Activity')                                
-
-            print(names)        
-            self.tableWidget.setColumnCount(len(names))
-            self.tableWidget.setRowCount(0)
-            self.tableWidget.setHorizontalHeaderLabels(names)    
-            for row_num, row_data in enumerate(result):
-                self.tableWidget.insertRow(row_num)
-                for column_num, data in enumerate(row_data):
-                    self.tableWidget.setItem(row_num, column_num, QTableWidgetItem(str(data)))
+            # db_ctr = DBController(fileName)
+            # try:
+            #     names, result = db_ctr.excute_sql('delete')            
+            # except Exception as e:
+            #     print(str(e))
+            #     return
+            # self.tableWidget.setColumnCount(len(names))
+            # self.tableWidget.setRowCount(0)
+            # self.tableWidget.setHorizontalHeaderLabels(names)    
+            # for row_num, row_data in enumerate(result):
+            #     self.tableWidget.insertRow(row_num)
+            #     for column_num, data in enumerate(row_data):
+            #         self.tableWidget.setItem(row_num, column_num, QTableWidgetItem(str(data)))
+            # #Get Tables
+            # _, result = db_ctr.excute_sql('SELECT name from sqlite_master where type= "table"')
+            # print(result)
         else :
             msg = QMessageBox()
             msg.setText("Cannot Open !")

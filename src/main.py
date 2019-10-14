@@ -10,4 +10,3 @@ if __name__ == "__main__":
     myWindow = mainwindow.WindowClass()
     myWindow.show()
     app.exec_()
-    
