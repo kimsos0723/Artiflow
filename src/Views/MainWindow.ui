@@ -31,66 +31,6 @@
          <string>Databases</string>
         </property>
        </column>
-       <item>
-        <property name="text">
-         <string>Database 1</string>
-        </property>
-        <item>
-         <property name="text">
-          <string>Activity</string>
-         </property>
-         <item>
-          <property name="text">
-           <string>AppId</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Id</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Etag</string>
-          </property>
-         </item>
-        </item>
-        <item>
-         <property name="text">
-          <string>ActivityOperation</string>
-         </property>
-         <item>
-          <property name="text">
-           <string>AppId</string>
-          </property>
-         </item>
-        </item>
-       </item>
-       <item>
-        <property name="text">
-         <string>Database 2</string>
-        </property>
-        <item>
-         <property name="text">
-          <string>Activity</string>
-         </property>
-         <item>
-          <property name="text">
-           <string>AppId</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Id</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Etag</string>
-          </property>
-         </item>
-        </item>
-       </item>
       </widget>
      </item>
      <item row="0" column="4">
