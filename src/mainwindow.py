@@ -31,6 +31,8 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
         AddFile.triggered.connect(self.AddFileAction)
         #Help menu
         fileMenu.addAction(AddFile)
+        #TreeWidget Header
+        self.tableWidget.setVerticalHeaderLabels(["Databases"])
         
         
     def AddFileAction(self, _):
@@ -38,8 +40,7 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
         self.addTreeWidgetItems(self)
 
     def openFileNameDialog(self,_) :
-        options = QFileDialog.Options()
-        # options |= QFileDialog.
+        options = QFileDialog.Options()    
         path, _ = QFileDialog.getOpenFileName(self,"Open DB File", "", "DB Files (*.db);;All Files (*)",options=options)
         if path:            
             msg = QMessageBox()
@@ -51,7 +52,7 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
             msg.setText("Cannot Open !")
             msg.exec_()
     
-    def addTreeWidgetItems(self, _) :                
+    def addTreeWidgetItems(self, _) :
         db_ctr = DBController(self.DBfilePaths[0])
         #Get Tables
         _, result = db_ctr.excute_sql('SELECT name from sqlite_master where type= "table"')
@@ -66,13 +67,12 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
             names, result = db_ctr.excute_sql()
         except Exception as e:
             print(str(e))
-            return
-        self.tableWidget.setColumnCount(len(names))
-        self.tableWidget.setRowCount(0)
-        self.tableWidget.setHorizontalHeaderLabels(names)    
+            return            
+
+        self.tableWidget.setRowCount(0)            
+        self.tableWidget.setColumnCount(len(names))                
         for row_num, row_data in enumerate(result):
             self.tableWidget.insertRow(row_num)
             for column_num, data in enumerate(row_data):
                 self.tableWidget.setItem(row_num, column_num, QTableWidgetItem(str(data)))
-            
-                        
+      
