@@ -1,11 +1,12 @@
-from Controller.db_controller import *
-
 import sys
+from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5 import uic
 
+from Controller.DbController import *
 from Views import Ui_MainWindow as Ui
+import dbTableWindow
 # form_class = uic.loadUiType('./Views/MainWindow.ui')[0]
 class WindowClass(QMainWindow, Ui.Ui_MainWindow):    
     """
@@ -38,8 +39,9 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
         path = self.openFileNameDialog(self)    
         if path == "" :
             return
-        
-        self.tabWidget.addTab(QTreeView(), self.DBfilePaths[-1].split('/')[-1])
+                
+        self.addTabWidget
+        return
 
     def openFileNameDialog(self,_):
         options = QFileDialog.Options()
@@ -49,11 +51,42 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
             msg = QMessageBox()
             msg.setText(path)
             msg.exec_()
-            self.DBfilePaths.append(path) 
+            self.DBfilePaths.append(path)             
         except Exception as e:
             msg = QMessageBox()
             msg.setText("Cannot Open !")            
             msg.exec_()
         
-    def addTreeView(self, _):
-           
+        self.addTabWidget(self)
+
+    def addTabWidget(self, _):        
+        db_ctr = DBController(self.DBfilePaths[-1])
+        try:
+            _, result = db_ctr.excute_sql(
+                'SELECT name from sqlite_master where type= "table"')
+            print(str(result))
+        
+        except Exception as e:
+            print(str(e))
+            return
+            
+        my_tree = self.addTreeWidget(result)
+        self.tabWidget.addTab(my_tree, self.DBfilePaths[-1].split('/')[-1])
+
+    def addTreeWidget(self, l : list) -> QTreeWidget :        
+        db_tree = QTreeWidget()
+        db_tree.setHeaderLabel("Tables")
+        db_tree.itemDoubleClicked.connect(self.onItemClicked)
+        for i in l:
+            QTreeWidgetItem(db_tree, list(i))
+        return db_tree
+
+    @pyqtSlot(QTreeWidgetItem, int)
+    def onItemClicked(self, it, col):
+        print(it, col, it.text(col))
+        db_ctr = DBController(self.DBfilePaths[-1])
+        names, result = db_ctr.excute_sql(
+            "SELECT * from {}".format(it.text(col)))
+        print(str(names))
+        
+        
