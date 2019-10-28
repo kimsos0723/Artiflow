@@ -83,10 +83,12 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
 
     @pyqtSlot(QTreeWidgetItem, int)
     def onItemClicked(self, it, col):
-        print(it, col, it.text(col))
+        # print(it, col, it.text(col))
         db_ctr = DBController(self.DBfilePaths[-1])
         names, result = db_ctr.excute_sql(
             "SELECT * from {}".format(it.text(col)))
-        print(str(names))
+        self.mydb = dbTableWindow.DbTableWindow(names, result)    
+        
+        
         
         
