@@ -88,7 +88,3 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
         names, result = db_ctr.excute_sql(
             "SELECT * from {}".format(it.text(col)))
         self.mydb = dbTableWindow.DbTableWindow(names, result)    
-        
-        
-        
-        
