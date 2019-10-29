@@ -12,5 +12,6 @@ class DbTableWindow(QTreeWidget):
             self.tableWidget.insertRow(row_num)
             for column_num, data in enumerate(row_data):
                 self.tableWidget.setItem(row_num, column_num, QTableWidgetItem(str(data)))
+        self.tableWidget.resize(500,500)
         self.tableWidget.show()
         print(names, result)
