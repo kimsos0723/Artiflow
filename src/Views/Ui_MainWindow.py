@@ -9,7 +9,6 @@
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
@@ -55,7 +54,7 @@ class Ui_MainWindow(object):
         self.listView = QtWidgets.QListView(self.tab_2)
         self.listView.setObjectName("listView")
         self.horizontalLayout.addWidget(self.listView)
-        self.tabWidget_2.addTab(self.tab_2, "")
+        # self.tabWidget_2.addTab(self.tab_2, "")
         self.gridLayout_2.addWidget(self.splitter, 0, 1, 1, 1)
         self.listView_2 = QtWidgets.QListView(self.centralwidget)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
@@ -85,4 +84,4 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
-        self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_2), _translate("MainWindow", "Tab 1"))
+        self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_2), _translate("MainWindow", "LOG"))
