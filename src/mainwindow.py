@@ -16,21 +16,43 @@ import numpy as np
 
 
 class Canvas(FigureCanvas):
-    def __init__(self, parent=None, width=5, height=5, dpi=100, behaviors=['', ], lastBehaviorTime=24):
-        self.behaviors = behaviors
-        self.lastBehaviorTime = lastBehaviorTime
+    def __init__(self, parent=None, width=10, height=10, dpi=100):
+        self.behaviors = []
+        self.lastBehaviorTime = 24
         fig = Figure(figsize=(width, height), dpi=dpi)
         FigureCanvas.__init__(self, fig)
         self.setParent(parent)
-        self.setMold()
+        self.setWindow()
 
-    def setMold(self):
+    def setWindow(self):
         self.gnt = self.figure.add_subplot(111)        
-        self.gnt.set_ylabel('behavior')
+        self.gnt.set_ylabel('behavior')        
         self.gnt.grid(True)
         self.gnt.figure.canvas.draw()
-
-
+    
+    def DrawBarh(self, behaviors: list):
+        appid_arr = np.array([i['AppId'] for i in behaviors])        
+        times_arr = np.array([i['StartTime'] for i in behaviors])
+        np.append(times_arr, [i['EndTime'] for i in behaviors])
+        uniq_appid_arr = np.unique(appid_arr)
+        self.gnt.set_ylim(0, uniq_appid_arr.size*5)
+        xZero = times_arr.min()
+        self.gnt.set_xlim(0, appid_arr.size)
+        self.gnt.set_yticks([i*5 for i in range(uniq_appid_arr.size)])
+        p = re.compile(r'(?!^\d+$)^.+$')
+        appUniq = []
+        for i in uniq_appid_arr:           
+            appsStr = ''
+            for j in json.loads(i):
+                jj = j['application']
+                if p.match(jj):
+                    appsStr += jj+','
+            appUniq.append(appsStr.split(',')[-2])
+        print(appUniq)
+        self.gnt.set_yticklabels(appUniq)
+        self.gnt.broken_barh([(xZero, 15700)], (0, 5), 
+                         facecolors ='tab:blue') 
+        self.gnt.figure.canvas.draw()
     # def
 
 
@@ -49,7 +71,7 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
 
     def initUi(self, _):
         self.initManu(self)
-        self.canvas = Canvas(parent=self, width=8, height=4, behaviors=['123'])
+        self.canvas = Canvas(parent=self, width=14, height=10)
         self.gridLayout.addWidget(self.canvas)
 
     def initManu(self, _):
@@ -142,7 +164,7 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
         db_ctr = DBController(self.DBfilePaths[-1])
         #graph 
         graph = self.DurationByApp(db_ctr)
-        
+        self.canvas.DrawBarh(graph)
         # recent
         recapp = self.ResentApp(db_ctr)
         recent_app = QTableWidget()
@@ -198,7 +220,16 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
                     'PlatformDeviceId': i[3]
                 }
             )
-        
+        _, res = db_ctr.excute_sql('select AppId, StartTime, EndTime, PlatformDeviceId from ActivityOperation')
+        for i in res:
+            AppList.append(
+                {
+                    'AppId': i[0],
+                    'StartTime': i[1],
+                    'EndTime': i[2],
+                    'PlatformDeviceId': i[3]
+                }
+            )
         return AppList
         
     def ViewDeviceAction(self, _):
