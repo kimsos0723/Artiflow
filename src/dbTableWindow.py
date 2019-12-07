@@ -16,5 +16,6 @@ class DbTableWindow(QTreeWidget):
             for column_num, data in enumerate(row_data):
                 self.tableWidget.setItem(row_num, column_num, QTableWidgetItem(str(data)))                
         dbtables.append(self)
-        self.tableWidget.show()        
+        self.tableWidget.show()  
+        
         # print(names, result)

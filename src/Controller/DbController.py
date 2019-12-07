@@ -14,7 +14,7 @@ class DBController:
         conn = sqlite3.connect(self.path)
         cursor = conn.cursor()
         if re.findall('|'.join(self.ban_list),sql):            
-            raise Exception("Syntax ERROR")        
+            raise Exception("Syntax ERROR")
         result = cursor.execute(sql).fetchall()
         names = list(map(lambda x: x[0], cursor.description))
         cursor.close()
