@@ -5,18 +5,20 @@ from PyQt5.QtGui import *
 from PyQt5 import uic
 import re
 import json
-
+from datetime import datetime, timedelta
 from Controller.DbController import *
 from Views import Ui_MainWindow as Ui
 import dbTableWindow
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+
 from matplotlib.figure import Figure
 import numpy as np
 
 
 class Canvas(FigureCanvas):
-    def __init__(self, parent=None, width=10, height=10, dpi=100):
+    def __init__(self, parent=None, width=20, height=20, dpi=80):
         self.behaviors = []
         self.lastBehaviorTime = 24
         fig = Figure(figsize=(width, height), dpi=dpi)
@@ -25,33 +27,63 @@ class Canvas(FigureCanvas):
         self.setWindow()
 
     def setWindow(self):
-        self.gnt = self.figure.add_subplot(111)        
-        self.gnt.set_ylabel('behavior')        
+        self.gnt = self.figure.add_subplot(111)
+        self.gnt.set_ylabel('Behavior')
+        self.gnt.set_xlabel('Hour')
         self.gnt.grid(True)
         self.gnt.figure.canvas.draw()
-    
+
     def DrawBarh(self, behaviors: list):
-        appid_arr = np.array([i['AppId'] for i in behaviors])        
-        times_arr = np.array([i['StartTime'] for i in behaviors])
-        np.append(times_arr, [i['EndTime'] for i in behaviors])
-        uniq_appid_arr = np.unique(appid_arr)
-        self.gnt.set_ylim(0, uniq_appid_arr.size*5)
-        xZero = times_arr.min()
-        self.gnt.set_xlim(0, appid_arr.size)
-        self.gnt.set_yticks([i*5 for i in range(uniq_appid_arr.size)])
+        appid_arr = np.array([i['AppId'] for i in behaviors])
+        start_times_arr = np.array([i['StartTime'] for i in behaviors])
+        end_times_arr = np.array([i['EndTime'] for i in behaviors])    
+        rmp = end_times_arr
+
+        times_arr = np.array(start_times_arr)        
+        np.append(times_arr, rmp)
+        times_arr_i = times_arr.astype(np.int64)            
+        uniq_appid_arr = np.unique(appid_arr)        
+
+        self.gnt.set_ylim(0, uniq_appid_arr.size*15)
+        print(uniq_appid_arr.size)
+        min_time = datetime.fromtimestamp(times_arr_i.min())
+        max_time = datetime.fromtimestamp(times_arr_i.max())
+        
+        self.gnt.set_xlim(0, (max_time.second / 3600)+(max_time.day*24))
+        print([i for i in range(uniq_appid_arr.size)])
+        self.gnt.set_yticks([i*10 for i in range(uniq_appid_arr.size)])
         p = re.compile(r'(?!^\d+$)^.+$')
         appUniq = []
-        for i in uniq_appid_arr:           
+        for i in uniq_appid_arr:
             appsStr = ''
             for j in json.loads(i):
                 jj = j['application']
                 if p.match(jj):
-                    appsStr += jj+','
-            appUniq.append(appsStr.split(',')[-2])
-        print(appUniq)
+                    appsStr += jj
+            appUniq.append(appsStr.split(',')[0].split('\\')[-1])
         self.gnt.set_yticklabels(appUniq)
-        self.gnt.broken_barh([(xZero, 15700)], (0, 5), 
-                         facecolors ='tab:blue') 
+        appByY = dict(zip(uniq_appid_arr, range(len(uniq_appid_arr))))
+        aTse = list(zip(appid_arr, list(zip(start_times_arr, end_times_arr))))                
+        tDict = {}
+        # print(aTse[0][0])
+        for i in aTse:            
+            if not i[0] in tDict:
+                tDict[i[0]] = []
+            tDict[i[0]].append(i[1])        
+        
+        for k, v in tDict.items():          
+            a = [ datetime.fromtimestamp(i[0])  for i in v]
+            b = [ datetime.fromtimestamp(i[1])  for i in v]
+            a = list(map(lambda n: n.second/3600+n.day*24, a))
+            b = list(map(lambda n: n.second/3600+n.day*24, b))
+            for n, i in enumerate(b):
+                if i == 24.0:
+                    b[n] = (max_time.second / 3600)+(max_time.day*24)
+                
+            c =list(zip(a, b))            
+            self.gnt.broken_barh(c, (appByY[k]*5, appByY[k]*5), facecolors = 'tab:green')                
+            print(appByY[k], appByY[k]+1)
+            # print(appByY[k])
         self.gnt.figure.canvas.draw()
     # def
 
@@ -71,8 +103,11 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
 
     def initUi(self, _):
         self.initManu(self)
-        self.canvas = Canvas(parent=self, width=14, height=10)
+        self.canvas = Canvas(parent=self, width=5, height=5)
+        toolbar = NavigationToolbar(self.canvas, self)
+
         self.gridLayout.addWidget(self.canvas)
+        self.gridLayout.addWidget(toolbar)
 
     def initManu(self, _):
         mainManu = self.menuBar()
@@ -99,17 +134,16 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
         if(res == []):
             _, res = db_ctr.excute_sql("select AppId from ActivityOperation where ETag = \
                             (select ManualSequence.value from ManualSequence)")
-        
+
         for i in json.loads(res[0][0]):
             a.append(i['application'])
-            
 
         return a
 
     def AppByNumber(self, db_ctr):
         _, res = db_ctr.excute_sql(
             'select Activity.Appid from Activity order by Activity.StartTime')
-        appList =[]
+        appList = []
         for i in res:
             appList.append(i[0])
         npAppList = np.array(appList)
@@ -121,10 +155,9 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
             for j in json.loads(i):
                 jj = j['application']
                 if p.match(jj):
-                    appsStr += jj+','                    
+                    appsStr += jj+','
             appUniq.append(appsStr)
-            
-                
+
         return dict(zip(appUniq, counts))
 
     def CopyPasteSnap(self, db_ctr):
@@ -162,7 +195,7 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
             return
 
         db_ctr = DBController(self.DBfilePaths[-1])
-        #graph 
+        #graph
         graph = self.DurationByApp(db_ctr)
         self.canvas.DrawBarh(graph)
         # recent
@@ -210,7 +243,8 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
 
     def DurationByApp(self, db_ctr):
         AppList = []
-        _, res = db_ctr.excute_sql('select Activity.AppId, Activity.StartTime, Activity.EndTime, Activity.PlatformDeviceId from Activity')
+        _, res = db_ctr.excute_sql(
+            'select Activity.AppId, Activity.StartTime, Activity.EndTime, Activity.PlatformDeviceId from Activity')
         for i in res:
             AppList.append(
                 {
@@ -220,7 +254,8 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
                     'PlatformDeviceId': i[3]
                 }
             )
-        _, res = db_ctr.excute_sql('select AppId, StartTime, EndTime, PlatformDeviceId from ActivityOperation')
+        _, res = db_ctr.excute_sql(
+            'select AppId, StartTime, EndTime, PlatformDeviceId from ActivityOperation')
         for i in res:
             AppList.append(
                 {
@@ -231,7 +266,7 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
                 }
             )
         return AppList
-        
+
     def ViewDeviceAction(self, _):
         db_ctr = DBController(self.DBfilePaths[-1])
         _, result = db_ctr.excute_sql(
@@ -278,10 +313,9 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
 
     @pyqtSlot(QTreeWidgetItem, int)
     def onItemClicked(self, it, col):
-        # print(it, col, it.text(col))
+        
         db_ctr = DBController(self.DBfilePaths[-1])
         names, result = db_ctr.excute_sql(
             "SELECT * from {}".format(it.text(col)))
         print(self.DBTables)
         dbTableWindow.DbTableWindow(names, result, self.DBTables)
-
