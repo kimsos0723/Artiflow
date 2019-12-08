@@ -73,9 +73,9 @@ class Canvas(FigureCanvas):
             a = [ datetime.fromtimestamp(i[0])  for i in v]
             b = [ datetime.fromtimestamp(i[1])  for i in v]
             a = list(map(lambda n: n.second/3600+n.day*24, a))
-            b = list(map(lambda n: n.second/3600+n.day*24, b))
-            color = 'tab:blue'
+            b = list(map(lambda n: n.second/3600+n.day*24, b))            
             for n, i in enumerate(b):
+                color = 'tab:blue'
                 if i == 24.0:
                     b[n] = (max_time.second / 3600)+(max_time.day*24)        
                     color = 'tab:green'
