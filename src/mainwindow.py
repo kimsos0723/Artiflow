@@ -44,13 +44,11 @@ class Canvas(FigureCanvas):
         times_arr_i = times_arr.astype(np.int64)            
         uniq_appid_arr = np.unique(appid_arr)        
 
-        self.gnt.set_ylim(0, uniq_appid_arr.size*15)
-        print(uniq_appid_arr.size)
+        self.gnt.set_ylim(0, uniq_appid_arr.size*15)        
         min_time = datetime.fromtimestamp(times_arr_i.min())
         max_time = datetime.fromtimestamp(times_arr_i.max())
         
-        self.gnt.set_xlim(0, (max_time.second / 3600)+(max_time.day*24))
-        print([i for i in range(uniq_appid_arr.size)])
+        self.gnt.set_xlim(0, (max_time.second / 3600)+(max_time.day*24))        
         self.gnt.set_yticks([i*10 for i in range(uniq_appid_arr.size)])
         p = re.compile(r'(?!^\d+$)^.+$')
         appUniq = []
@@ -76,14 +74,13 @@ class Canvas(FigureCanvas):
             b = [ datetime.fromtimestamp(i[1])  for i in v]
             a = list(map(lambda n: n.second/3600+n.day*24, a))
             b = list(map(lambda n: n.second/3600+n.day*24, b))
+            color = 'tab:blue'
             for n, i in enumerate(b):
                 if i == 24.0:
-                    b[n] = (max_time.second / 3600)+(max_time.day*24)
-                
+                    b[n] = (max_time.second / 3600)+(max_time.day*24)        
+                    color = 'tab:green'
             c =list(zip(a, b))            
-            self.gnt.broken_barh(c, (appByY[k]*5, appByY[k]*5), facecolors = 'tab:green')                
-            print(appByY[k], appByY[k]+1)
-            # print(appByY[k])
+            self.gnt.broken_barh(c, (appByY[k]*5, appByY[k]*5), facecolors = color)                                        
         self.gnt.figure.canvas.draw()
     # def
 
