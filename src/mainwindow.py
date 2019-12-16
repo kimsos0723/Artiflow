@@ -3,18 +3,20 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5 import uic
+
 import re
 import json
 from datetime import datetime, timedelta
+
 from Controller.DbController import *
 from Views import Ui_MainWindow as Ui
 import dbTableWindow
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-
 from matplotlib.figure import Figure
 import numpy as np
+
 
 
 class Canvas(FigureCanvas):
@@ -27,63 +29,44 @@ class Canvas(FigureCanvas):
         self.setWindow()
 
     def setWindow(self):
-        self.gnt = self.figure.add_subplot(111)
-        self.gnt.set_ylabel('Behavior')
-        self.gnt.set_xlabel('Hour')
-        self.gnt.grid(True)
-        self.gnt.figure.canvas.draw()
+        self.barh = self.figure.add_subplot(111)
+        self.barh.set_ylabel('Behavior')
+        self.barh.set_xlabel('Hour')
+        self.barh.grid(True)
+
+        self.barh.figure.canvas.draw()
 
     def DrawBarh(self, behaviors: list):
-        appid_arr = np.array([i['AppId'] for i in behaviors])
-        start_times_arr = np.array([i['StartTime'] for i in behaviors])
-        end_times_arr = np.array([i['EndTime'] for i in behaviors])    
-        rmp = end_times_arr
+        platforms = []
+        starts = []
+        ends = []
+        diffs = []        
+        for d in behaviors:
+            platforms.append(d['PlatformDeviceId'])
+            starts.append(d['StartTime'])
+            ends.append(d['EndTime'])
+            if (d['EndTime'] - d['StartTime']) < 0:
+                diffs.append(
+                    (d['StartTime'], 1, d['PlatformDeviceId']))
+            else:
+                diffs.append((d['StartTime'], d['EndTime'] -
+                              d['StartTime'], d['PlatformDeviceId']))        
+        platforms_uniq = list(set(platforms))
+        poss_dict = {}
 
-        times_arr = np.array(start_times_arr)        
-        np.append(times_arr, rmp)
-        times_arr_i = times_arr.astype(np.int64)            
-        uniq_appid_arr = np.unique(appid_arr)        
+        for i in platforms_uniq:            
+            poss_dict[i] = []        
+        for data in diffs:            
+            poss_dict[data[-1]].append((data[0], data[1]))
 
-        self.gnt.set_ylim(0, uniq_appid_arr.size*15)        
-        min_time = datetime.fromtimestamp(times_arr_i.min())
-        max_time = datetime.fromtimestamp(times_arr_i.max())
-        
-        self.gnt.set_xlim(0, (max_time.second / 3600)+(max_time.day*24))        
-        self.gnt.set_yticks([i*10 for i in range(uniq_appid_arr.size)])
-        p = re.compile(r'(?!^\d+$)^.+$')
-        appUniq = []
-        for i in uniq_appid_arr:
-            appsStr = ''
-            for j in json.loads(i):
-                jj = j['application']
-                if p.match(jj):
-                    appsStr += jj
-            appUniq.append(appsStr.split(',')[0].split('\\')[-1])
-        self.gnt.set_yticklabels(appUniq)
-        appByY = dict(zip(uniq_appid_arr, range(len(uniq_appid_arr))))
-        aTse = list(zip(appid_arr, list(zip(start_times_arr, end_times_arr))))                
-        tDict = {}
-        # print(aTse[0][0])
-        for i in aTse:            
-            if not i[0] in tDict:
-                tDict[i[0]] = []
-            tDict[i[0]].append(i[1])        
-        
-        for k, v in tDict.items():          
-            a = [ datetime.fromtimestamp(i[0])  for i in v]
-            b = [ datetime.fromtimestamp(i[1])  for i in v]
-            a = list(map(lambda n: n.second/3600+n.day*24, a))
-            b = list(map(lambda n: n.second/3600+n.day*24, b))            
-            for n, i in enumerate(b):
-                color = 'tab:blue'
-                if i == 24.0:
-                    b[n] = (max_time.second / 3600)+(max_time.day*24)        
-                    color = 'tab:green'
-            c =list(zip(a, b))            
-            self.gnt.broken_barh(c, (appByY[k]*5, appByY[k]*5), facecolors = color)                                        
-        self.gnt.figure.canvas.draw()
-    # def
+        for i, p in enumerate(poss_dict):
+            self.barh.broken_barh(poss_dict[p], (i,0.5))
+                    
+        self.barh.set_yticks([i+0.5 for i in range(len(platforms_uniq))])
+        self.barh.set_yticklabels(platforms_uniq)
+        self.barh.figure.canvas.draw()
 
+    # def DrawBarh2(self, )
 
 class WindowClass(QMainWindow, Ui.Ui_MainWindow):
     """
@@ -105,6 +88,12 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
 
         self.gridLayout.addWidget(self.canvas)
         self.gridLayout.addWidget(toolbar)
+        self.comboBox.addItem("실행파일")
+        self.comboBox.addItem("UserDoc")
+        self.comboBox.addItem("webPage")
+        self.comboBox.addItem("Wifi")
+        self.comboBox.addItem("MISC")
+        self.comboBox.currentIndexChanged.connect(self.on_select)
 
     def initManu(self, _):
         mainManu = self.menuBar()
@@ -310,9 +299,134 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
 
     @pyqtSlot(QTreeWidgetItem, int)
     def onItemClicked(self, it, col):
-        
+
         db_ctr = DBController(self.DBfilePaths[-1])
         names, result = db_ctr.excute_sql(
-            "SELECT * from {}".format(it.text(col)))
-        print(self.DBTables)
+            "SELECT * from {}".format(it.text(col)))        
         dbTableWindow.DbTableWindow(names, result, self.DBTables)
+
+
+    def __make_table(self, RowSQL, sql, type, path):
+        self.tableWidget_2.setSelectionBehavior(QTableView.SelectRows) # 여러 줄 선택
+
+        db_ctr = DBController(path)
+        
+        _, RowCount = db_ctr.excute_sql(RowSQL)
+        rc = RowCount[0][0]
+
+        #표 그리기
+        self.tableWidget_2.setColumnCount(3)
+        self.tableWidget_2.setRowCount(rc)
+
+        #column 헤더명 설정
+        self.tableWidget_2.setHorizontalHeaderLabels(["AppActivityId", "time", "Endtime"])
+        self.tableWidget_2.horizontalHeaderItem(0).setTextAlignment(Qt.AlignCenter)
+
+        #cell에 데이터 입력
+
+        for i in range(rc):
+            a = i + 1
+            sql2 = sql
+            if rc < a:
+                break
+            sql2 = sql2 + str(a)
+            _, result = db_ctr.excute_sql(sql2)
+            if result == []:
+                break
+
+            Seq01 = str(result[0][1])
+            timestmp = int(result[0][2])
+            endTimeStmp = int(result[0][3])
+            if endTimeStmp == 0:
+                endDate = "No Endtime"
+            else:
+                endDate = str(datetime.fromtimestamp(endTimeStmp))
+            date = str(datetime.fromtimestamp(timestmp))
+
+            if type == ".exe":
+                idx = Seq01.find(type)
+                if idx == -1:
+                    idx = Seq01.find("com.")
+                    if idx == -1:
+                        continue
+                    Seq02 = Seq01[idx:]
+                    idx2 = Seq02.find(",")
+                    final = Seq02[:idx2]
+                else:
+                    Seq02 = Seq01[:idx+4]
+                    idx2 = Seq02[::-1].find("\\")
+                    Seq03 = Seq02[::-1]
+                    Seq04 = Seq03[:idx2]
+                    final = Seq04[::-1]
+            elif type == "webPage":
+                final = Seq01
+            elif type == "UserDoc":
+                idx = Seq01.find("\\")
+                if idx == -1:
+                    idx = Seq01[::-1].find("/")
+                    if idx == -1:
+                        Seq01 = str(result[0][4])
+                        idx = Seq01.find(".exe")
+                        if idx == -1:
+                            idx = Seq01.find("com.")
+                            if idx == -1:
+                                continue
+                            Seq02 = Seq01[idx:]
+                            idx2 = Seq02.find(",")
+                            final = Seq02[:idx2]
+                        else:
+                            Seq02 = Seq01[:idx + 4]
+                            idx2 = Seq02[::-1].find("\\")
+                            Seq03 = Seq02[::-1]
+                            Seq04 = Seq03[:idx2]
+                            final = Seq04[::-1]
+                    else:
+                        Seq02 = Seq01[::-1]
+                        Seq03 = Seq02[:idx]
+                        final = Seq03[::-1]
+
+                else:
+                    Seq02 = Seq01[::-1]
+                    idx2 = Seq02.find("\\")
+                    Seq03 = Seq02[:idx2]
+                    final = Seq03[::-1]
+                final = final.replace("%20", " ")
+            elif type == "Wifi":
+                final = "Wifi 연결정보"
+            elif type == "MISC":
+                idx = Seq01.find("displayText")
+                if idx == -1:
+                    continue
+                Seq02 = Seq01[idx+13:]
+                idx2 = Seq02.find(",")
+                final = Seq02[:idx2]
+
+            self.tableWidget_2.setItem(i, 0, QTableWidgetItem(final))
+            self.tableWidget_2.setItem(i, 1, QTableWidgetItem(date))
+            self.tableWidget_2.setItem(i, 2, QTableWidgetItem(endDate))
+
+
+    @pyqtSlot()
+    def on_select(self):
+        result1 = str(self.comboBox.currentText())
+        if result1 == "실행파일":
+            RowSQL = "SELECT count(*) FROM Activity WHERE AppId LIKE '%.exe%' AND AppActivityID NOT LIKE '%.doc%' AND AppActivityId NOT LIKE '%.pdf%' AND AppActivityId NOT LIKE '%.xls%' AND AppActivityId NOT LIKE '%.ppt%' AND AppActivityId NOT LIKE '%.hwp%' AND AppActivityId NOT LIKE '%.txt%' AND AppId NOT LIKE '%Hwp.exe%' AND AppId NOT LIKE '%HShow.exe%' AND AppId NOT LIKE '%HCell.exe%' AND AppId NOT LIKE '%Notepad.exe%' AND AppId NOT LIKE '% OR AppId LIKE '%com.%'"
+            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppId, StartTime, EndTime FROM Activity WHERE AppId like '%.exe%' AND AppActivityID NOT LIKE '%.doc%' AND AppActivityId NOT LIKE '%.pdf%' AND AppActivityId NOT LIKE '%.xls%' AND AppActivityId NOT LIKE '%.ppt%' AND AppActivityId NOT LIKE '%.hwp%' AND AppActivityId NOT LIKE '%.txt%' AND AppId NOT LIKE '%Hwp.exe%' AND AppId NOT LIKE '%HShow.exe%' AND AppId NOT LIKE '%HCell.exe%' AND AppId NOT LIKE '%Notepad.exe%' OR AppId LIKE '%com.%') SELECT * FROM Temp WHERE No ="
+            type = ".exe"
+        elif result1 == "webPage":
+            RowSQL = "SELECT count(*) FROM Activity WHERE AppActivityId LIKE '%http%'"
+            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppActivityId, StartTime, EndTime FROM Activity WHERE AppActivityId like '%http%') SELECT * FROM Temp WHERE No ="
+            type = "webPage"
+        elif result1 == "UserDoc":
+            RowSQL = "SELECT count(*) FROM Activity WHERE AppActivityId LIKE '%.doc%' OR AppId LIKE '%Hwp.exe%' OR AppId LIKE '%HShow.exe%' OR AppId LIKE '%HCell.exe%' OR AppId LIKE '%Notepad.exe%' OR AppActivityId LIKE '%.pdf%' OR AppActivityId LIKE '%.xls%' OR AppActivityId LIKE '%.ppt%' OR AppActivityId LIKE '%.hwp%' OR AppActivityId LIKE '%.txt%'"
+            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppActivityId, StartTime, EndTime, AppId FROM Activity WHERE AppActivityId LIKE '%.doc%' OR AppId LIKE '%Hwp.exe%' OR AppId LIKE '%HShow.exe%' OR AppId LIKE '%HCell.exe%' OR AppId LIKE '%Notepad.exe%' OR AppActivityId LIKE '%.pdf%' OR AppActivityId LIKE '%.xls%' OR AppActivityId LIKE '%ppt%' OR AppActivityId LIKE '%.hwp%' OR AppActivityId LIKE '%.txt%') SELECT * FROM Temp WHERE No ="
+            type = "UserDoc"
+        elif result1 == "Wifi":
+            RowSQL = "SELECT count(*) FROM Activity WHERE ActivityType = 12 OR ActivityType = 11"
+            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppId, StartTime, EndTime FROM Activity WHERE ActivityType = 11 OR ActivityType = 12) SELECT * FROM Temp WHERE No ="
+            type = "Wifi"
+        elif result1 == "MISC":
+            RowSQL = "SELECT count(*) FROM Activity WHERE AppActivityId NOT like '%http%' AND AppId NOT LIKE '%.exe%' AND ActivityType NOT LIKE '%12%' AND AppActivityId NOT LIKE '%.pdf%' AND ActivityType NOT LIKE '%11%' AND Payload like '%displayText%'"
+            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', Payload, StartTime, EndTime FROM Activity WHERE AppActivityId NOT like '%http%' AND AppActivityId NOT LIKE '%.pdf%' AND AppId NOT LIKE '%.exe%' AND ActivityType NOT LIKE '%12%' AND ActivityType NOT LIKE '%11%' AND Payload like '%displayText%') SELECT * FROM Temp WHERE No ="
+            type = "MISC"        
+        self.__make_table(RowSQL,sql,type, self.DBfilePaths[-1])
