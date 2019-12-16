@@ -6,7 +6,8 @@ from PyQt5 import uic
 
 import re
 import json
-from datetime import datetime, timedelta
+from datetime import *
+import time
 
 from Controller.DbController import *
 from Views import Ui_MainWindow as Ui
@@ -16,7 +17,6 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 import numpy as np
-
 
 
 class Canvas(FigureCanvas):
@@ -40,33 +40,65 @@ class Canvas(FigureCanvas):
         platforms = []
         starts = []
         ends = []
-        diffs = []        
+        diffs = []
         for d in behaviors:
             platforms.append(d['PlatformDeviceId'])
             starts.append(d['StartTime'])
             ends.append(d['EndTime'])
-            if (d['EndTime'] - d['StartTime']) < 0:
+            if (d['EndTime'] - d['StartTime']) <= 0:
                 diffs.append(
                     (d['StartTime'], 1, d['PlatformDeviceId']))
             else:
                 diffs.append((d['StartTime'], d['EndTime'] -
-                              d['StartTime'], d['PlatformDeviceId']))        
+                              d['StartTime'], d['PlatformDeviceId']))
         platforms_uniq = list(set(platforms))
         poss_dict = {}
 
-        for i in platforms_uniq:            
-            poss_dict[i] = []        
-        for data in diffs:            
+        for i in platforms_uniq:
+            poss_dict[i] = []
+        for data in diffs:
             poss_dict[data[-1]].append((data[0], data[1]))
 
         for i, p in enumerate(poss_dict):
-            self.barh.broken_barh(poss_dict[p], (i,0.5))
-                    
+            self.barh.broken_barh(poss_dict[p], (i, 0.5))
+
         self.barh.set_yticks([i+0.5 for i in range(len(platforms_uniq))])
         self.barh.set_yticklabels(platforms_uniq)
         self.barh.figure.canvas.draw()
 
-    # def DrawBarh2(self, )
+    def DrawBehavior(self, behaviors: list):
+        self.figure.clear()
+        self.figure.canvas.draw()
+        self.barh = self.figure.add_subplot(111)
+        self.barh.set_ylabel('Behavior')
+        self.barh.set_xlabel('Hour')
+        self.barh.grid(True)
+        bs = [i[0] for i in behaviors]
+        times = [i[1] for i in behaviors]
+        stimes = [i[1][0] for i in behaviors]
+        st_dur = []
+        ss = []
+        for i in range(len(times)):            
+            s = datetime.strptime(times[i][0], '%Y-%m-%d %H:%M:%S').timestamp()            
+            ss.append(int(s))
+            if times[i][1] != '':
+                e = datetime.strptime(times[i][1], '%Y-%m-%d %H:%M:%S').timestamp()
+                es = abs(e-s)
+                if es == 0:
+                    es = 5
+                st_dur.append((s, es))
+            else:
+                st_dur.append((s, 5))
+
+        drawFild = list(zip(bs,st_dur))        
+        # self.barh.set_xticks(np.arange(min(ss), max(ss)))
+        print(min(ss), max(ss))
+        self.barh.set_xticks(np.arange(min(ss), max(ss), step = 360000))
+        for i in drawFild:            
+            self.barh.broken_barh([(int(i[1][0]),int(i[1][1]))], (5, 0.3))
+        self.barh.figure.canvas.draw()    
+
+
 
 class WindowClass(QMainWindow, Ui.Ui_MainWindow):
     """
@@ -302,15 +334,15 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
 
         db_ctr = DBController(self.DBfilePaths[-1])
         names, result = db_ctr.excute_sql(
-            "SELECT * from {}".format(it.text(col)))        
+            "SELECT * from {}".format(it.text(col)))
         dbTableWindow.DbTableWindow(names, result, self.DBTables)
 
-
     def __make_table(self, RowSQL, sql, type, path):
-        self.tableWidget_2.setSelectionBehavior(QTableView.SelectRows) # 여러 줄 선택
+        self.tableWidget_2.setSelectionBehavior(
+            QTableView.SelectRows)  # 여러 줄 선택
 
         db_ctr = DBController(path)
-        
+
         _, RowCount = db_ctr.excute_sql(RowSQL)
         rc = RowCount[0][0]
 
@@ -319,11 +351,15 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
         self.tableWidget_2.setRowCount(rc)
 
         #column 헤더명 설정
-        self.tableWidget_2.setHorizontalHeaderLabels(["AppActivityId", "time", "Endtime"])
-        self.tableWidget_2.horizontalHeaderItem(0).setTextAlignment(Qt.AlignCenter)
+        self.tableWidget_2.setHorizontalHeaderLabels(
+            ["AppActivityId", "time", "Endtime"])
+        self.tableWidget_2.horizontalHeaderItem(
+            0).setTextAlignment(Qt.AlignCenter)
 
         #cell에 데이터 입력
-
+        seqs = []
+        starts = []
+        ends = []
         for i in range(rc):
             a = i + 1
             sql2 = sql
@@ -342,7 +378,7 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
             else:
                 endDate = str(datetime.fromtimestamp(endTimeStmp))
             date = str(datetime.fromtimestamp(timestmp))
-
+            
             if type == ".exe":
                 idx = Seq01.find(type)
                 if idx == -1:
@@ -400,11 +436,16 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
                 Seq02 = Seq01[idx+13:]
                 idx2 = Seq02.find(",")
                 final = Seq02[:idx2]
-
+            seqs.append(final)
+            starts.append(date)
+            ends.append(endDate)
             self.tableWidget_2.setItem(i, 0, QTableWidgetItem(final))
             self.tableWidget_2.setItem(i, 1, QTableWidgetItem(date))
-            self.tableWidget_2.setItem(i, 2, QTableWidgetItem(endDate))
-
+            self.tableWidget_2.setItem(i, 2, QTableWidgetItem(endDate))        
+        ends = ['' if x=='No Endtime' else x for x in ends]
+        
+        
+        self.canvas.DrawBehavior(list(zip(seqs, list(zip(starts, ends)))))
 
     @pyqtSlot()
     def on_select(self):
@@ -428,5 +469,5 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
         elif result1 == "MISC":
             RowSQL = "SELECT count(*) FROM Activity WHERE AppActivityId NOT like '%http%' AND AppId NOT LIKE '%.exe%' AND ActivityType NOT LIKE '%12%' AND AppActivityId NOT LIKE '%.pdf%' AND ActivityType NOT LIKE '%11%' AND Payload like '%displayText%'"
             sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', Payload, StartTime, EndTime FROM Activity WHERE AppActivityId NOT like '%http%' AND AppActivityId NOT LIKE '%.pdf%' AND AppId NOT LIKE '%.exe%' AND ActivityType NOT LIKE '%12%' AND ActivityType NOT LIKE '%11%' AND Payload like '%displayText%') SELECT * FROM Temp WHERE No ="
-            type = "MISC"        
-        self.__make_table(RowSQL,sql,type, self.DBfilePaths[-1])
+            type = "MISC"
+        self.__make_table(RowSQL, sql, type, self.DBfilePaths[-1])
