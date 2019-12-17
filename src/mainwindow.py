@@ -16,6 +16,7 @@ import dbTableWindow
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
+import matplotlib.font_manager as fm
 import numpy as np
 
 
@@ -75,29 +76,32 @@ class Canvas(FigureCanvas):
         self.barh.grid(True)
         bs = [i[0] for i in behaviors]
         times = [i[1] for i in behaviors]
-        stimes = [i[1][0] for i in behaviors]
+
         st_dur = []
         ss = []
-        for i in range(len(times)):            
-            s = datetime.strptime(times[i][0], '%Y-%m-%d %H:%M:%S').timestamp()            
+        for i in range(len(times)):
+            s = datetime.strptime(times[i][0], '%Y-%m-%d %H:%M:%S').timestamp()
             ss.append(int(s))
             if times[i][1] != '':
-                e = datetime.strptime(times[i][1], '%Y-%m-%d %H:%M:%S').timestamp()
+                e = datetime.strptime(
+                    times[i][1], '%Y-%m-%d %H:%M:%S').timestamp()
                 es = abs(e-s)
                 if es == 0:
-                    es = 5
+                    es = 5000
                 st_dur.append((s, es))
             else:
-                st_dur.append((s, 5))
-
-        drawFild = list(zip(bs,st_dur))        
-        # self.barh.set_xticks(np.arange(min(ss), max(ss)))
+                st_dur.append((s, 5000))
+        set_bs = list(set(bs))
+        self.barh.set_yticks(np.arange(len(set_bs), step=1))
+        fpath = r'/home/xylitol/Documents/D2Coding/D2Coding-Ver1.3.2-20180524.ttf'
+        self.barh.set_yticklabels(set_bs, fontproperties=fm.FontProperties(fname=fpath))
+        drawFild = list(zip(bs, st_dur))
         print(min(ss), max(ss))
-        self.barh.set_xticks(np.arange(min(ss), max(ss), step = 360000))
-        for i in drawFild:            
-            self.barh.broken_barh([(int(i[1][0]),int(i[1][1]))], (5, 0.3))
-        self.barh.figure.canvas.draw()    
-
+        self.barh.set_xticks(np.arange(min(ss), max(ss), step=360000))
+        for i in drawFild:
+            self.barh.broken_barh(
+                [(int(i[1][0]), int(i[1][1]))], (set_bs.index(i[0]), 0.8))
+        self.barh.figure.canvas.draw()
 
 
 class WindowClass(QMainWindow, Ui.Ui_MainWindow):
@@ -378,7 +382,7 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
             else:
                 endDate = str(datetime.fromtimestamp(endTimeStmp))
             date = str(datetime.fromtimestamp(timestmp))
-            
+
             if type == ".exe":
                 idx = Seq01.find(type)
                 if idx == -1:
@@ -441,10 +445,9 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
             ends.append(endDate)
             self.tableWidget_2.setItem(i, 0, QTableWidgetItem(final))
             self.tableWidget_2.setItem(i, 1, QTableWidgetItem(date))
-            self.tableWidget_2.setItem(i, 2, QTableWidgetItem(endDate))        
-        ends = ['' if x=='No Endtime' else x for x in ends]
-        
-        
+            self.tableWidget_2.setItem(i, 2, QTableWidgetItem(endDate))
+        ends = ['' if x == 'No Endtime' else x for x in ends]
+
         self.canvas.DrawBehavior(list(zip(seqs, list(zip(starts, ends)))))
 
     @pyqtSlot()
