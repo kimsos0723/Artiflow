@@ -313,8 +313,8 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
                         a, b, c = winreg.EnumValue(key2, j)
                         if "DeviceName" in a: 
                             print('{"'+keyname+'":"'+b+'"}')                    
-                            bs.append(b)
-                            bs.append(names)
+                            bs.append(str(b))
+                            names.append(str(keyname))
                 except:
                     errorMsg = "Exception Inner:", sys.exc_info()[0]
                 winreg.CloseKey(key2)
