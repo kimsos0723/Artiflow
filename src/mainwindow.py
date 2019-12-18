@@ -8,6 +8,8 @@ import re
 import json
 from datetime import *
 import time
+import sys
+import winreg
 
 from Controller.DbController import *
 from Views import Ui_MainWindow as Ui
@@ -290,10 +292,47 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
         return AppList
 
     def ViewDeviceAction(self, _):
-        db_ctr = DBController(self.DBfilePaths[-1])
-        _, result = db_ctr.excute_sql(
-            'select distinct Activity.PlatformDeviceId from Activity')
-        print(str(result))
+        db_ctr = DBController(self.DBfilePaths[-1])    
+        _, result = db_ctr.excute_sql('SELECT PlatformDeviceID FROM Activity')
+        PDIList = list(set(result))
+        keydir = 'Software\Microsoft\\Windows\\CurrentVersion\\TaskFlow\\DeviceCache'
+        reg = winreg.ConnectRegistry(None, winreg.HKEY_CURRENT_USER)
+        key = winreg.OpenKey(reg, keydir)
+        bs = []
+        names = []
+        
+        for i in range(1024):
+            try:
+                keyname = winreg.EnumKey(key, i)
+                if keyname not in PDIList:
+                    continue
+                subkey2 = "%s\\%s" % (keydir, keyname)
+                key2 = winreg.OpenKey(reg, subkey2)
+                try:
+                    for j in range(1024):
+                        a, b, c = winreg.EnumValue(key2, j)
+                        if "DeviceName" in a: 
+                            print('{"'+keyname+'":"'+b+'"}')                    
+                            bs.append(b)
+                            bs.append(names)
+                except:
+                    errorMsg = "Exception Inner:", sys.exc_info()[0]
+                winreg.CloseKey(key2)
+            except:
+                errorMsg = "Exception Outter:", sys.exc_info()[0]
+                break
+            winreg.CloseKey(key)
+        
+        self.qtable = QTableWidget()
+        self.qtable.setColumnCount(2)
+        self.qtable.setRowCount(0)
+        self.qtable.setHorizontalHeaderLabels(['ID','Name'])
+        for i, d in enumerate(list(zip(names,bs))):
+            self.qtable.insertRow(i)
+            self.qtable.setItem(i, 0, QTableWidgetItem(str(d[0])))
+            self.qtable.setItem(i, 1, QTableWidgetItem(str(d[1])))
+
+        self.qtable.show()
 
     def openFileNameDialog(self, _):
         options = QFileDialog.Options()
@@ -335,30 +374,24 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
 
     @pyqtSlot(QTreeWidgetItem, int)
     def onItemClicked(self, it, col):
-
         db_ctr = DBController(self.DBfilePaths[-1])
         names, result = db_ctr.excute_sql(
             "SELECT * from {}".format(it.text(col)))
         dbTableWindow.DbTableWindow(names, result, self.DBTables)
 
     def __make_table(self, RowSQL, sql, type, path):
-        self.tableWidget_2.setSelectionBehavior(
-            QTableView.SelectRows)  # 여러 줄 선택
-
         db_ctr = DBController(path)
-
+        
+        self.tableWidget_2.setSelectionBehavior(QTableView.SelectRows) # 여러 줄 선택​
         _, RowCount = db_ctr.excute_sql(RowSQL)
         rc = RowCount[0][0]
-
         #표 그리기
-        self.tableWidget_2.setColumnCount(3)
+        self.tableWidget_2.setColumnCount(5)
         self.tableWidget_2.setRowCount(rc)
 
         #column 헤더명 설정
-        self.tableWidget_2.setHorizontalHeaderLabels(
-            ["AppActivityId", "time", "Endtime"])
-        self.tableWidget_2.horizontalHeaderItem(
-            0).setTextAlignment(Qt.AlignCenter)
+        self.tableWidget_2.setHorizontalHeaderLabels(["AppActivityId", "StartTime", "EndTime", "CreatedInCloud", "Details"])
+        self.tableWidget_2.horizontalHeaderItem(0).setTextAlignment(Qt.AlignCenter)
 
         #cell에 데이터 입력
         seqs = []
@@ -371,12 +404,13 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
                 break
             sql2 = sql2 + str(a)
             _, result = db_ctr.excute_sql(sql2)
-            if result == []:
+            if result ==[]:
                 break
 
             Seq01 = str(result[0][1])
             timestmp = int(result[0][2])
             endTimeStmp = int(result[0][3])
+
             if endTimeStmp == 0:
                 endDate = "No Endtime"
             else:
@@ -385,6 +419,7 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
 
             if type == ".exe":
                 idx = Seq01.find(type)
+                CloudTimeStmp = int(result[0][4])
                 if idx == -1:
                     idx = Seq01.find("com.")
                     if idx == -1:
@@ -398,8 +433,9 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
                     Seq03 = Seq02[::-1]
                     Seq04 = Seq03[:idx2]
                     final = Seq04[::-1]
-            elif type == "webPage":
+            elif type =="webPage":
                 final = Seq01
+                CloudTimeStmp = int(result[0][4])
             elif type == "UserDoc":
                 idx = Seq01.find("\\")
                 if idx == -1:
@@ -431,8 +467,10 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
                     Seq03 = Seq02[:idx2]
                     final = Seq03[::-1]
                 final = final.replace("%20", " ")
+                CloudTimeStmp = int(result[0][5])
             elif type == "Wifi":
                 final = "Wifi 연결정보"
+                CloudTimeStmp = int(result[0][4])
             elif type == "MISC":
                 idx = Seq01.find("displayText")
                 if idx == -1:
@@ -440,12 +478,18 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
                 Seq02 = Seq01[idx+13:]
                 idx2 = Seq02.find(",")
                 final = Seq02[:idx2]
+                CloudTimeStmp = int(result[0][4])
+            if CloudTimeStmp == 0:
+                cloudDate = str("No Data")
+            else:
+                cloudDate = str(datetime.fromtimestamp(CloudTimeStmp))                
             seqs.append(final)
             starts.append(date)
             ends.append(endDate)
             self.tableWidget_2.setItem(i, 0, QTableWidgetItem(final))
             self.tableWidget_2.setItem(i, 1, QTableWidgetItem(date))
             self.tableWidget_2.setItem(i, 2, QTableWidgetItem(endDate))
+            self.tableWidget_2.setItem(i, 3, QTableWidgetItem(cloudDate))
         ends = ['' if x == 'No Endtime' else x for x in ends]
 
         self.canvas.DrawBehavior(list(zip(seqs, list(zip(starts, ends)))))
@@ -454,23 +498,24 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
     def on_select(self):
         result1 = str(self.comboBox.currentText())
         if result1 == "실행파일":
-            RowSQL = "SELECT count(*) FROM Activity WHERE AppId LIKE '%.exe%' AND AppActivityID NOT LIKE '%.doc%' AND AppActivityId NOT LIKE '%.pdf%' AND AppActivityId NOT LIKE '%.xls%' AND AppActivityId NOT LIKE '%.ppt%' AND AppActivityId NOT LIKE '%.hwp%' AND AppActivityId NOT LIKE '%.txt%' AND AppId NOT LIKE '%Hwp.exe%' AND AppId NOT LIKE '%HShow.exe%' AND AppId NOT LIKE '%HCell.exe%' AND AppId NOT LIKE '%Notepad.exe%' AND AppId NOT LIKE '% OR AppId LIKE '%com.%'"
-            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppId, StartTime, EndTime FROM Activity WHERE AppId like '%.exe%' AND AppActivityID NOT LIKE '%.doc%' AND AppActivityId NOT LIKE '%.pdf%' AND AppActivityId NOT LIKE '%.xls%' AND AppActivityId NOT LIKE '%.ppt%' AND AppActivityId NOT LIKE '%.hwp%' AND AppActivityId NOT LIKE '%.txt%' AND AppId NOT LIKE '%Hwp.exe%' AND AppId NOT LIKE '%HShow.exe%' AND AppId NOT LIKE '%HCell.exe%' AND AppId NOT LIKE '%Notepad.exe%' OR AppId LIKE '%com.%') SELECT * FROM Temp WHERE No ="
+            RowSQL = "SELECT count(*) FROM Activity WHERE AppId LIKE '%.exe%' AND AppActivityID NOT LIKE '%.doc%' AND AppActivityId NOT LIKE '%.pdf%' AND AppActivityId NOT LIKE '%.xls%' AND AppActivityId NOT LIKE '%.ppt%' AND AppActivityId NOT LIKE '%.hwp%' AND AppActivityId NOT LIKE '%.txt%' AND AppId NOT LIKE '%Hwp.exe%' AND AppId NOT LIKE '%HShow.exe%' AND AppId NOT LIKE '%HCell.exe%' AND AppId NOT LIKE '%Notepad.exe%' OR AppId LIKE '%com.%'"
+            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppId, StartTime, EndTime, CreatedInCloud FROM Activity WHERE AppId like '%.exe%' AND AppActivityID NOT LIKE '%.doc%' AND AppActivityId NOT LIKE '%.pdf%' AND AppActivityId NOT LIKE '%.xls%' AND AppActivityId NOT LIKE '%.ppt%' AND AppActivityId NOT LIKE '%.hwp%' AND AppActivityId NOT LIKE '%.txt%' AND AppId NOT LIKE '%Hwp.exe%' AND AppId NOT LIKE '%HShow.exe%' AND AppId NOT LIKE '%HCell.exe%' AND AppId NOT LIKE '%Notepad.exe%' OR AppId LIKE '%com.%') SELECT * FROM Temp WHERE No ="
             type = ".exe"
         elif result1 == "webPage":
             RowSQL = "SELECT count(*) FROM Activity WHERE AppActivityId LIKE '%http%'"
-            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppActivityId, StartTime, EndTime FROM Activity WHERE AppActivityId like '%http%') SELECT * FROM Temp WHERE No ="
+            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppActivityId, StartTime, EndTime, CreatedInCloud FROM Activity WHERE AppActivityId like '%http%') SELECT * FROM Temp WHERE No ="
             type = "webPage"
         elif result1 == "UserDoc":
             RowSQL = "SELECT count(*) FROM Activity WHERE AppActivityId LIKE '%.doc%' OR AppId LIKE '%Hwp.exe%' OR AppId LIKE '%HShow.exe%' OR AppId LIKE '%HCell.exe%' OR AppId LIKE '%Notepad.exe%' OR AppActivityId LIKE '%.pdf%' OR AppActivityId LIKE '%.xls%' OR AppActivityId LIKE '%.ppt%' OR AppActivityId LIKE '%.hwp%' OR AppActivityId LIKE '%.txt%'"
-            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppActivityId, StartTime, EndTime, AppId FROM Activity WHERE AppActivityId LIKE '%.doc%' OR AppId LIKE '%Hwp.exe%' OR AppId LIKE '%HShow.exe%' OR AppId LIKE '%HCell.exe%' OR AppId LIKE '%Notepad.exe%' OR AppActivityId LIKE '%.pdf%' OR AppActivityId LIKE '%.xls%' OR AppActivityId LIKE '%ppt%' OR AppActivityId LIKE '%.hwp%' OR AppActivityId LIKE '%.txt%') SELECT * FROM Temp WHERE No ="
+            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppActivityId, StartTime, EndTime, AppId, CreatedInCloud FROM Activity WHERE AppActivityId LIKE '%.doc%' OR AppId LIKE '%Hwp.exe%' OR AppId LIKE '%HShow.exe%' OR AppId LIKE '%HCell.exe%' OR AppId LIKE '%Notepad.exe%' OR AppActivityId LIKE '%.pdf%' OR AppActivityId LIKE '%.xls%' OR AppActivityId LIKE '%ppt%' OR AppActivityId LIKE '%.hwp%' OR AppActivityId LIKE '%.txt%') SELECT * FROM Temp WHERE No ="
             type = "UserDoc"
         elif result1 == "Wifi":
             RowSQL = "SELECT count(*) FROM Activity WHERE ActivityType = 12 OR ActivityType = 11"
-            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppId, StartTime, EndTime FROM Activity WHERE ActivityType = 11 OR ActivityType = 12) SELECT * FROM Temp WHERE No ="
+            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', AppId, StartTime, EndTime, CreatedInCloud FROM Activity WHERE ActivityType = 11 OR ActivityType = 12) SELECT * FROM Temp WHERE No ="
             type = "Wifi"
-        elif result1 == "MISC":
+        elif result1 =="MISC":
             RowSQL = "SELECT count(*) FROM Activity WHERE AppActivityId NOT like '%http%' AND AppId NOT LIKE '%.exe%' AND ActivityType NOT LIKE '%12%' AND AppActivityId NOT LIKE '%.pdf%' AND ActivityType NOT LIKE '%11%' AND Payload like '%displayText%'"
-            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', Payload, StartTime, EndTime FROM Activity WHERE AppActivityId NOT like '%http%' AND AppActivityId NOT LIKE '%.pdf%' AND AppId NOT LIKE '%.exe%' AND ActivityType NOT LIKE '%12%' AND ActivityType NOT LIKE '%11%' AND Payload like '%displayText%') SELECT * FROM Temp WHERE No ="
-            type = "MISC"
+            sql = "WITH Temp AS(SELECT ROW_NUMBER() OVER(ORDER BY ETag ASC) AS 'No', Payload, StartTime, EndTime, CreatedInCloud FROM Activity WHERE AppActivityId NOT like '%http%' AND AppActivityId NOT LIKE '%.pdf%' AND AppId NOT LIKE '%.exe%' AND ActivityType NOT LIKE '%12%' AND ActivityType NOT LIKE '%11%' AND Payload like '%displayText%') SELECT * FROM Temp WHERE No ="
+            type = "MISC" 
+
         self.__make_table(RowSQL, sql, type, self.DBfilePaths[-1])
