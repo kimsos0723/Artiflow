@@ -9,7 +9,7 @@ import json
 from datetime import *
 import time
 import sys
-import winreg
+# import winreg
 
 from Controller.DbController import *
 from Views import Ui_MainWindow as Ui
@@ -67,7 +67,18 @@ class Canvas(FigureCanvas):
 
         self.barh.set_yticks([i+0.5 for i in range(len(platforms_uniq))])
         self.barh.set_yticklabels(platforms_uniq)
+        self.barh.set_xticklabels([datetime.utcfromtimestamp(int(i)).strftime('%Y-%m-%d %H:%M:%S') for i in starts])
+        print(starts)
         self.barh.figure.canvas.draw()
+    
+        self.qtt = QTableWidget()
+        self.qtt.setColumnCount(1)
+        self.qtt.setRowCount(0)
+        self.qtt.setHorizontalHeaderLabels(['Device Name'])
+        for i, d in enumerate(platforms_uniq):
+            self.qtt.insertRow(i)
+            self.qtt.setItem(i, 0, QTableWidgetItem(str(d)))
+        self.qtt.show()
 
     def DrawBehavior(self, behaviors: list):
         self.figure.clear()
@@ -97,6 +108,8 @@ class Canvas(FigureCanvas):
         self.barh.set_yticks(np.arange(len(set_bs), step=1))
         fpath = r'/home/xylitol/Documents/D2Coding/D2Coding-Ver1.3.2-20180524.ttf'
         self.barh.set_yticklabels(set_bs, fontproperties=fm.FontProperties(fname=fpath))
+        self.barh.set_xticklabels([datetime.utcfromtimestamp(int(i)).strftime('%Y-%m-%d %H:%M:%S') for i in ss])
+    
         drawFild = list(zip(bs, st_dur))
         print(min(ss), max(ss))
         self.barh.set_xticks(np.arange(min(ss), max(ss), step=360000))
@@ -294,7 +307,19 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
     def ViewDeviceAction(self, _):
         db_ctr = DBController(self.DBfilePaths[-1])    
         _, result = db_ctr.excute_sql('SELECT PlatformDeviceID FROM Activity')
-        PDIList = list(set(result))
+        PDIList = []
+
+        rows = result
+        for row in rows:
+            if row[0] in PDIList:
+                continue
+            else:
+                PDIList.append(row[0])
+
+        '''
+        Added code from 299 to 304 that add string to PDIList, not tuple
+        '''
+
         keydir = 'Software\Microsoft\\Windows\\CurrentVersion\\TaskFlow\\DeviceCache'
         reg = winreg.ConnectRegistry(None, winreg.HKEY_CURRENT_USER)
         key = winreg.OpenKey(reg, keydir)
@@ -304,8 +329,9 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
         for i in range(1024):
             try:
                 keyname = winreg.EnumKey(key, i)
-                if keyname not in PDIList:
-                    continue
+                for j in range(1):
+                    if keyname not in PDIList[j]:
+                        continue
                 subkey2 = "%s\\%s" % (keydir, keyname)
                 key2 = winreg.OpenKey(reg, subkey2)
                 try:
@@ -519,3 +545,4 @@ class WindowClass(QMainWindow, Ui.Ui_MainWindow):
             type = "MISC" 
 
         self.__make_table(RowSQL, sql, type, self.DBfilePaths[-1])
+
